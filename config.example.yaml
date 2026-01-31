@@ -1,0 +1,20 @@
+source:
+  registry: registry-a.example.com
+  scheme: https
+  username: user-a
+  password: pass-a
+  insecure: false
+
+destination:
+  registry: registry-b.example.com
+  scheme: https
+  username: user-b
+  password: pass-b
+  insecure: false
+
+images:
+  - name: team/app
+    tags:
+      - latest
+      - v1.0.0
+  - name: team/worker
