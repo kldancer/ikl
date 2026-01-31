@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -73,7 +74,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "\nUsage:")
 	fmt.Fprintln(w, "  ikl list-images --registry <registry> [--username <u> --password <p> --insecure]")
 	fmt.Fprintln(w, "  ikl list-tags --repository <registry/repo> [--username <u> --password <p> --insecure]")
-	fmt.Fprintln(w, "  ikl migrate --config <config.json>")
+	fmt.Fprintln(w, "  ikl migrate --config <config.yaml>")
 }
 
 func runListImages(args []string) error {
@@ -517,13 +518,185 @@ func loadConfig(path string) (*migrateConfig, error) {
 		return nil, err
 	}
 	var cfg migrateConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+	if strings.HasSuffix(path, ".json") {
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			return nil, err
+		}
+	} else {
+		parsed, err := parseYAMLConfig(string(data))
+		if err != nil {
+			return nil, err
+		}
+		cfg = *parsed
 	}
 	if cfg.Source.Registry == "" || cfg.Destination.Registry == "" {
 		return nil, errors.New("source.registry 和 destination.registry 不能为空")
 	}
 	return &cfg, nil
+}
+
+func parseYAMLConfig(input string) (*migrateConfig, error) {
+	scanner := bufio.NewScanner(strings.NewReader(input))
+	cfg := &migrateConfig{}
+	var currentSection string
+	var currentImage *imageConfig
+	var parsingTags bool
+
+	for lineNum := 1; scanner.Scan(); lineNum++ {
+		line := scanner.Text()
+		line = strings.TrimSpace(stripComment(line))
+		if line == "" {
+			continue
+		}
+		if strings.HasSuffix(line, ":") {
+			key := strings.TrimSuffix(line, ":")
+			switch key {
+			case "source", "destination":
+				currentSection = key
+				currentImage = nil
+				parsingTags = false
+				continue
+			case "images":
+				currentSection = "images"
+				currentImage = nil
+				parsingTags = false
+				continue
+			}
+		}
+		if currentSection == "images" {
+			if strings.HasPrefix(line, "- ") || line == "-" {
+				currentImage = &imageConfig{}
+				cfg.Images = append(cfg.Images, *currentImage)
+				parsingTags = false
+				line = strings.TrimSpace(strings.TrimPrefix(line, "-"))
+				if line == "" {
+					continue
+				}
+			}
+			if currentImage == nil {
+				return nil, fmt.Errorf("第 %d 行: images 必须包含列表项", lineNum)
+			}
+			key, value, err := splitKeyValue(line)
+			if err != nil {
+				return nil, fmt.Errorf("第 %d 行: %w", lineNum, err)
+			}
+			if key == "tags" {
+				if value != "" {
+					tags, err := parseInlineList(value)
+					if err != nil {
+						return nil, fmt.Errorf("第 %d 行: %w", lineNum, err)
+					}
+					updateImageTags(&cfg.Images[len(cfg.Images)-1], tags)
+				} else {
+					parsingTags = true
+				}
+				continue
+			}
+			if parsingTags {
+				if strings.HasPrefix(line, "- ") {
+					tag := strings.TrimSpace(strings.TrimPrefix(line, "-"))
+					updateImageTags(&cfg.Images[len(cfg.Images)-1], []string{trimQuotes(tag)})
+					continue
+				}
+				parsingTags = false
+			}
+			if key == "name" {
+				cfg.Images[len(cfg.Images)-1].Name = trimQuotes(value)
+				continue
+			}
+			return nil, fmt.Errorf("第 %d 行: 未知 images 字段 %q", lineNum, key)
+		}
+
+		if currentSection == "source" || currentSection == "destination" {
+			key, value, err := splitKeyValue(line)
+			if err != nil {
+				return nil, fmt.Errorf("第 %d 行: %w", lineNum, err)
+			}
+			reg := cfg.Source
+			if currentSection == "destination" {
+				reg = cfg.Destination
+			}
+			switch key {
+			case "registry":
+				reg.Registry = trimQuotes(value)
+			case "username":
+				reg.Username = trimQuotes(value)
+			case "password":
+				reg.Password = trimQuotes(value)
+			case "insecure":
+				reg.Insecure = strings.EqualFold(value, "true")
+			default:
+				return nil, fmt.Errorf("第 %d 行: 未知 %s 字段 %q", lineNum, currentSection, key)
+			}
+			if currentSection == "destination" {
+				cfg.Destination = reg
+			} else {
+				cfg.Source = reg
+			}
+			continue
+		}
+		return nil, fmt.Errorf("第 %d 行: 无法解析配置", lineNum)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func splitKeyValue(line string) (string, string, error) {
+	parts := strings.SplitN(line, ":", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("无法解析键值: %s", line)
+	}
+	key := strings.TrimSpace(parts[0])
+	value := strings.TrimSpace(parts[1])
+	return key, value, nil
+}
+
+func stripComment(line string) string {
+	if idx := strings.Index(line, "#"); idx >= 0 {
+		return line[:idx]
+	}
+	return line
+}
+
+func trimQuotes(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.TrimPrefix(value, "\"")
+	value = strings.TrimSuffix(value, "\"")
+	value = strings.TrimPrefix(value, "'")
+	value = strings.TrimSuffix(value, "'")
+	return value
+}
+
+func parseInlineList(value string) ([]string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	if !strings.HasPrefix(value, "[") || !strings.HasSuffix(value, "]") {
+		return nil, fmt.Errorf("tags 必须是列表")
+	}
+	content := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(value, "["), "]"))
+	if content == "" {
+		return nil, nil
+	}
+	parts := strings.Split(content, ",")
+	var tags []string
+	for _, part := range parts {
+		tag := trimQuotes(strings.TrimSpace(part))
+		if tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+	return tags, nil
+}
+
+func updateImageTags(image *imageConfig, tags []string) {
+	if image == nil {
+		return
+	}
+	image.Tags = append(image.Tags, tags...)
 }
 
 func splitRepository(full string) (string, string, error) {

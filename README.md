@@ -24,8 +24,8 @@ go build -o ikl
 
 ### 迁移镜像（支持 amd64/arm64 的 manifest list）
 
-准备配置文件（见 `config.example.json`）：
+准备配置文件（见 `config.example.yaml`）：
 
 ```bash
-./ikl migrate --config config.example.json
+./ikl migrate --config config.example.yaml
 ```
