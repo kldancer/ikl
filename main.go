@@ -23,6 +23,7 @@ type registryConfig struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Insecure bool   `json:"insecure"`
+	Scheme   string `json:"scheme"`
 }
 
 type imageConfig struct {
@@ -72,14 +73,15 @@ func main() {
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "镜像管理工具 (ikl)")
 	fmt.Fprintln(w, "\nUsage:")
-	fmt.Fprintln(w, "  ikl list-images --registry <registry> [--username <u> --password <p> --insecure]")
-	fmt.Fprintln(w, "  ikl list-tags --repository <registry/repo> [--username <u> --password <p> --insecure]")
+	fmt.Fprintln(w, "  ikl list-images --registry <registry> [--scheme http|https --username <u> --password <p> --insecure]")
+	fmt.Fprintln(w, "  ikl list-tags --repository <registry/repo> [--scheme http|https --username <u> --password <p> --insecure]")
 	fmt.Fprintln(w, "  ikl migrate --config <config.yaml>")
 }
 
 func runListImages(args []string) error {
 	fs := flag.NewFlagSet("list-images", flag.ContinueOnError)
 	registry := fs.String("registry", "", "目标镜像仓库地址，例如 registry.example.com")
+	scheme := fs.String("scheme", "https", "访问协议 (http 或 https)")
 	flags := addCommonFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -88,7 +90,13 @@ func runListImages(args []string) error {
 		return errors.New("必须指定 --registry")
 	}
 
-	client := newRegistryClient(registryConfig{Registry: *registry, Username: flags.username, Password: flags.password, Insecure: flags.insecure})
+	client := newRegistryClient(registryConfig{
+		Registry: *registry,
+		Username: flags.username,
+		Password: flags.password,
+		Insecure: flags.insecure,
+		Scheme:   *scheme,
+	})
 	catalog, err := client.listCatalog(context.Background())
 	if err != nil {
 		return err
@@ -102,6 +110,7 @@ func runListImages(args []string) error {
 func runListTags(args []string) error {
 	fs := flag.NewFlagSet("list-tags", flag.ContinueOnError)
 	repository := fs.String("repository", "", "仓库地址，例如 registry.example.com/repo/image")
+	scheme := fs.String("scheme", "https", "访问协议 (http 或 https)")
 	flags := addCommonFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -114,7 +123,13 @@ func runListTags(args []string) error {
 	if err != nil {
 		return err
 	}
-	client := newRegistryClient(registryConfig{Registry: registry, Username: flags.username, Password: flags.password, Insecure: flags.insecure})
+	client := newRegistryClient(registryConfig{
+		Registry: registry,
+		Username: flags.username,
+		Password: flags.password,
+		Insecure: flags.insecure,
+		Scheme:   *scheme,
+	})
 	tags, err := client.listTags(context.Background(), repo)
 	if err != nil {
 		return err
@@ -178,11 +193,7 @@ type registryClient struct {
 
 func newRegistryClient(cfg registryConfig) *registryClient {
 	registry := strings.TrimSuffix(cfg.Registry, "/")
-	baseURL := registry
-	if !strings.HasPrefix(registry, "http://") && !strings.HasPrefix(registry, "https://") {
-		baseURL = "https://" + registry
-	}
-	registry = strings.TrimPrefix(strings.TrimPrefix(registry, "https://"), "http://")
+	baseURL, registry := normalizeRegistryURL(registry, cfg.Scheme)
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.Insecure},
 	}
@@ -194,6 +205,20 @@ func newRegistryClient(cfg registryConfig) *registryClient {
 		password: cfg.Password,
 		baseURL:  baseURL,
 	}
+}
+
+func normalizeRegistryURL(registry, scheme string) (string, string) {
+	trimmed := strings.TrimSuffix(registry, "/")
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		base := trimmed
+		trimmed = strings.TrimPrefix(strings.TrimPrefix(trimmed, "https://"), "http://")
+		return base, trimmed
+	}
+	if scheme == "" {
+		scheme = "https"
+	}
+	return scheme + "://" + trimmed, trimmed
 }
 
 func (c *registryClient) addAuth(req *http.Request) {
@@ -625,6 +650,8 @@ func parseYAMLConfig(input string) (*migrateConfig, error) {
 				reg.Password = trimQuotes(value)
 			case "insecure":
 				reg.Insecure = strings.EqualFold(value, "true")
+			case "scheme":
+				reg.Scheme = strings.ToLower(trimQuotes(value))
 			default:
 				return nil, fmt.Errorf("第 %d 行: 未知 %s 字段 %q", lineNum, currentSection, key)
 			}

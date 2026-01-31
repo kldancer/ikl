@@ -13,13 +13,13 @@ go build -o ikl
 ### 列出仓库中的镜像列表
 
 ```bash
-./ikl list-images --registry registry.example.com --username user --password pass
+./ikl list-images --registry registry.example.com --scheme https --username user --password pass
 ```
 
 ### 列出某镜像的标签列表
 
 ```bash
-./ikl list-tags --repository registry.example.com/team/app --username user --password pass
+./ikl list-tags --repository registry.example.com/team/app --scheme https --username user --password pass
 ```
 
 ### 迁移镜像（支持 amd64/arm64 的 manifest list）
