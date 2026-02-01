@@ -1,20 +1,34 @@
 source:
-  registry: registry-a.example.com
-  scheme: https
-  username: user-a
-  password: pass-a
+  registry: index.docker.io
+  username: ""
+  password: ""
   insecure: false
 
 destination:
-  registry: registry-b.example.com
-  scheme: https
-  username: user-b
-  password: pass-b
-  insecure: false
+  registry: ykl.io:40443
+  username: "admin"
+  password: "your_password"
+  insecure: true
 
 images:
-  - name: team/app
+  # 场景1：不指定架构，默认迁移所有架构 (amd64, arm64, etc.)
+  - name: library/python
     tags:
-      - latest
-      - v1.0.0
-  - name: team/worker
+      - "3.12.12"
+
+  # 场景2：指定架构，仅迁移 linux/amd64 和 linux/arm64
+  # 适合过滤掉未知的 unknown 架构或不需要的 riscv64/s390x 等
+  - name: library/nginx
+    tags:
+      - "latest"
+      - "alpine"
+    architectures:
+      - amd64
+      - arm64
+
+  # 场景3：仅迁移单个架构，例如只保留 amd64
+  - name: library/redis
+    tags:
+      - "7.2"
+    architectures:
+      - amd64

@@ -1,0 +1,30 @@
+source:
+  # Docker Hub 的标准 Registry 地址
+  registry: index.docker.io
+  # 拉取公共镜像通常不需要认证，但如果遇到速率限制(Rate Limit)，请填入 Docker Hub 账号
+  username: ""
+  password: ""
+  insecure: false
+
+destination:
+  registry: ykl.io:40443
+  # 请替换为你的私有仓库实际账号密码
+  username: "admin"
+  password: "your_password"
+  # 目标仓库标记为不安全（跳过 TLS 验证）
+  insecure: true
+
+images:
+  # Docker Hub 官方镜像完整路径通常为 library/<image_name>
+  - name: library/golang
+    tags:
+      - "1.25-alpine"
+      - "1.24.12-alpine3.23"
+    architectures:
+      - amd64
+      - arm64
+  - name: library/redis
+    tags:
+      - "7.2"
+    architectures:
+      - amd64
