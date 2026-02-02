@@ -54,6 +54,50 @@ go build -o ikl
 
 准备配置文件（见 `config.example.yaml`）：
 
+#### 配置说明
+
+```yaml
+source:
+  registry: index.docker.io
+  username: ""
+  password: ""
+  insecure: false
+
+# 可选：为不同源仓库配置认证信息（仅私有仓库需要）
+source_registries:
+  registry.example.com:
+    username: "your_user"
+    password: "your_password"
+    insecure: true
+
+destination:
+  registry: ykl.io:40443
+  username: "admin"
+  password: "your_password"
+  insecure: true
+
+# 多行镜像列表：默认拉取 amd64/arm64；未写 tag 默认 latest
+image_list: |
+  docker.io/rook/ceph:v1.19.0
+  quay.io/cephcsi/cephcsi:v3.16.0
+  docker.io/library/nginx #arch=amd64,arm64
+
+# 高级配置：可指定目标名称、tags、架构或迁移所有 tags
+images:
+  - name: library/python
+  - name: library/nginx
+    tags:
+      - "latest"
+    architectures:
+      - amd64
+      - arm64
+```
+
+说明：
+- `image_list` 支持 `#arch=amd64,arm64` 指定架构；不写时默认迁移 amd64/arm64。
+- `image_list` 中不写 tag 时默认 `latest`。
+- 若 `image_list` 与 `images` 出现相同 registry/repo/tag，`images` 的配置会覆盖。
+
 ```bash
 ./ikl migrate --config config.yaml --proxy http://127.0.0.1:7897 --no-proxy ykl.io
 
