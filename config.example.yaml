@@ -4,20 +4,35 @@ source:
   password: ""
   insecure: false
 
+# 可选：为不同源仓库配置认证信息，仅私有仓库需要
+source_registries:
+  registry.example.com:
+    username: "your_user"
+    password: "your_password"
+    insecure: true
+
 destination:
   registry: ykl.io:40443
   username: "admin"
   password: "your_password"
   insecure: true
 
+image_list: |
+  docker.io/rook/ceph:v1.19.0
+  quay.io/cephcsi/cephcsi:v3.16.0
+  registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.15.0
+  registry.k8s.io/sig-storage/csi-provisioner:v6.0.0
+  registry.k8s.io/sig-storage/csi-snapshotter:v8.4.0
+  registry.k8s.io/sig-storage/csi-attacher:v4.10.0
+  registry.k8s.io/sig-storage/csi-resizer:v2.0.0
+  quay.io/csiaddons/k8s-sidecar:v0.14.0
+  docker.io/library/nginx #arch=amd64,arm64
+
 images:
-  # 场景1：不指定架构，默认迁移所有架构 (amd64, arm64, etc.)
+  # 场景1：保留默认 Registry，但要迁移所有 tag
   - name: library/python
-    tags:
-      - "3.12.12"
 
   # 场景2：指定架构，仅迁移 linux/amd64 和 linux/arm64
-  # 适合过滤掉未知的 unknown 架构或不需要的 riscv64/s390x 等
   - name: library/nginx
     tags:
       - "latest"
