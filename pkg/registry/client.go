@@ -23,13 +23,12 @@ import (
 type TagDetail struct {
 	Name          string
 	Digest        string
-	Architectures []string // e.g. "linux/amd64", "linux/arm64"
-	Size          int64    // 字节大小
+	Architectures []string
+	Size          int64
 	Created       time.Time
 	IsIndex       bool
 }
 
-// Client 封装了与 Registry 交互的底层逻辑
 type Client struct {
 	URL           string
 	Authenticator authn.Authenticator
@@ -37,7 +36,6 @@ type Client struct {
 	Insecure      bool
 }
 
-// NewClient 创建一个新的 Registry 客户端
 func NewClient(registryURL, username, password string, insecure bool, proxyURL string, noProxy string) (*Client, error) {
 	auth := authn.FromConfig(authn.AuthConfig{
 		Username: username,
@@ -130,7 +128,6 @@ func (c *Client) ListTags(ctx context.Context, repoName string) ([]string, error
 	return tags, nil
 }
 
-// GetTagDetail 获取单个 Tag 的详细元数据（架构、大小、时间）
 func (c *Client) GetTagDetail(ctx context.Context, repoName, tag string) (*TagDetail, error) {
 	refStr := fmt.Sprintf("%s/%s:%s", c.URL, repoName, tag)
 	refOpts := getNameOptions(c.Insecure)
@@ -209,9 +206,10 @@ func (c *Client) GetTagDetail(ctx context.Context, repoName, tag string) (*TagDe
 }
 
 // CopyImage 支持进度条回调和架构筛选
-func CopyImage(ctx context.Context, srcClient, dstClient *Client, imageName, tag string, progressCh chan<- v1.Update, platforms []string) error {
-	srcRefStr := fmt.Sprintf("%s/%s:%s", srcClient.URL, imageName, tag)
-	dstRefStr := fmt.Sprintf("%s/%s:%s", dstClient.URL, imageName, tag)
+// 修改：imageName 改为 srcRepo 和 dstRepo，允许重命名
+func CopyImage(ctx context.Context, srcClient, dstClient *Client, srcRepo, dstRepo, tag string, progressCh chan<- v1.Update, platforms []string) error {
+	srcRefStr := fmt.Sprintf("%s/%s:%s", srcClient.URL, srcRepo, tag)
+	dstRefStr := fmt.Sprintf("%s/%s:%s", dstClient.URL, dstRepo, tag)
 
 	srcRef, err := name.ParseReference(srcRefStr, getNameOptions(srcClient.Insecure)...)
 	if err != nil {
@@ -330,7 +328,6 @@ func (f *filteredIndex) MediaType() (types.MediaType, error) {
 }
 
 func (f *filteredIndex) Digest() (v1.Hash, error) {
-	// 由于 Manifest 内容改变，必须重新计算 Hash
 	b, err := f.RawManifest()
 	if err != nil {
 		return v1.Hash{}, err
@@ -340,7 +337,6 @@ func (f *filteredIndex) Digest() (v1.Hash, error) {
 }
 
 func (f *filteredIndex) Size() (int64, error) {
-	// 由于 Manifest 内容改变，必须重新计算 Size
 	b, err := f.RawManifest()
 	if err != nil {
 		return 0, err
@@ -361,8 +357,6 @@ func (f *filteredIndex) IndexManifest() (*v1.IndexManifest, error) {
 	}, nil
 }
 
-// RawManifest 必须实现，否则无法满足 v1.ImageIndex 接口
-// 它将 IndexManifest 序列化为 JSON
 func (f *filteredIndex) RawManifest() ([]byte, error) {
 	m, err := f.IndexManifest()
 	if err != nil {

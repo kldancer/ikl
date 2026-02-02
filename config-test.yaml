@@ -1,0 +1,20 @@
+source:
+  registry: quay.io
+  username: ""
+  password: ""
+  insecure: false
+
+destination:
+  registry: jusuan.io:8080
+  username: "admin"
+  password: "Harbor12345"
+  insecure: true
+  type: harbor
+
+images:
+  - name: ceph/ceph
+    tags:
+      - "v19"
+    architectures:
+      - amd64
+      - arm64

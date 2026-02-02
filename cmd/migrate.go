@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"ikl/pkg/config"
+	"ikl/pkg/harbor"
 	"ikl/pkg/registry"
 	"strings"
+	"sync"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/schollz/progressbar/v3"
@@ -30,7 +32,7 @@ var migrateCmd = &cobra.Command{
 
 		fmt.Println("🚀 开始执行镜像迁移任务...")
 		fmt.Printf("源仓库: %s (Insecure: %v)\n", cfg.Source.Registry, cfg.Source.Insecure)
-		fmt.Printf("目标仓库: %s (Insecure: %v)\n", cfg.Destination.Registry, cfg.Destination.Insecure)
+		fmt.Printf("目标仓库: %s (Type: %s, Insecure: %v)\n", cfg.Destination.Registry, cfg.Destination.Type, cfg.Destination.Insecure)
 
 		if proxy != "" {
 			fmt.Printf("🌐 全局代理: %s\n", proxy)
@@ -40,7 +42,29 @@ var migrateCmd = &cobra.Command{
 		}
 		fmt.Println("------------------------------------------------")
 
-		// 2. 初始化客户端
+		// 初始化 Harbor 客户端 (如果需要)
+		var harborClient *harbor.Client
+		// 用于缓存已检查过的项目，避免重复调用 API
+		checkedProjects := make(map[string]bool)
+		var mu sync.Mutex
+
+		if strings.ToLower(cfg.Destination.Type) == "harbor" {
+			hClient, err := harbor.NewClient(
+				cfg.Destination.Registry,
+				cfg.Destination.Username,
+				cfg.Destination.Password,
+				cfg.Destination.Insecure,
+				proxy,
+				noProxy,
+			)
+			if err != nil {
+				handleError(fmt.Errorf("初始化 Harbor 客户端失败: %v", err))
+			}
+			harborClient = hClient
+			fmt.Println("⚓️ 已启用 Harbor 自动项目管理")
+		}
+
+		// 2. 初始化 Registry 客户端
 		srcClient, err := registry.NewClient(
 			normalizeURL(cfg.Source.Registry),
 			cfg.Source.Username,
@@ -67,6 +91,32 @@ var migrateCmd = &cobra.Command{
 
 		// 3. 遍历镜像列表
 		for _, img := range cfg.Images {
+			dstName := img.TargetName
+			if dstName == "" {
+				dstName = img.Name
+			}
+
+			// --- Harbor 项目自动创建逻辑 ---
+			if harborClient != nil {
+				// 提取项目名称 (例如 "rook/ceph" -> "rook")
+				parts := strings.Split(dstName, "/")
+				if len(parts) > 1 {
+					project := parts[0]
+
+					mu.Lock()
+					if !checkedProjects[project] {
+						err := harborClient.EnsureProject(project)
+						if err != nil {
+							fmt.Printf("⚠️  无法自动创建/检查 Harbor 项目 '%s': %v\n", project, err)
+							// 不终止程序，尝试继续推送，也许项目已经存在只是 API 权限问题
+						}
+						checkedProjects[project] = true
+					}
+					mu.Unlock()
+				}
+			}
+			// --------------------------------
+
 			// 如果配置中未指定 Tags，则自动获取源仓库所有 Tags
 			tagsToMigrate := img.Tags
 			if len(tagsToMigrate) == 0 {
@@ -81,24 +131,21 @@ var migrateCmd = &cobra.Command{
 			}
 
 			if len(img.Architectures) > 0 {
-				fmt.Printf("🎯 镜像 %s 指定架构: %v\n", img.Name, img.Architectures)
+				fmt.Printf("🎯 镜像 %s (-> %s) 指定架构: %v\n", img.Name, dstName, img.Architectures)
 			}
 
 			// 4. 执行迁移
 			for _, tag := range tagsToMigrate {
-				fmt.Printf("⏳ 正在迁移 %s:%s ...\n", img.Name, tag)
+				fmt.Printf("⏳ 正在迁移 %s:%s -> %s:%s ...\n", img.Name, tag, dstName, tag)
 
-				// 创建进度条通道
 				updates := make(chan v1.Update)
 				errCh := make(chan error, 1)
 
-				// 创建进度条
 				bar := progressbar.DefaultBytes(
 					-1,
 					"   传输中",
 				)
 
-				// 启动 goroutine 监听进度
 				go func() {
 					for update := range updates {
 						if update.Total > 0 {
@@ -108,12 +155,9 @@ var migrateCmd = &cobra.Command{
 					}
 				}()
 
-				// 启动迁移
 				go func() {
-					// 传入 img.Architectures，实现按镜像配置过滤
-					err := registry.CopyImage(ctx, srcClient, dstClient, img.Name, tag, updates, img.Architectures)
+					err := registry.CopyImage(ctx, srcClient, dstClient, img.Name, dstName, tag, updates, img.Architectures)
 
-					// 安全关闭 channel
 					func() {
 						defer func() {
 							if r := recover(); r != nil {
@@ -125,12 +169,9 @@ var migrateCmd = &cobra.Command{
 					errCh <- err
 				}()
 
-				// 等待迁移完成
 				err = <-errCh
-
-				// 确保进度条完成显示
 				_ = bar.Finish()
-				fmt.Println() // 进度条换行
+				fmt.Println()
 
 				if err != nil {
 					fmt.Printf("   ❌ 失败: %v\n", err)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"ikl/pkg/registry"
 	"ikl/pkg/ui"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -33,7 +34,19 @@ var listImagesCmd = &cobra.Command{
 		fmt.Printf("🔍 正在连接仓库 %s 获取目录...\n", registryURL)
 
 		repos, err := client.ListRepositories(context.Background())
-		handleError(err)
+		if err != nil {
+			// 针对 Harbor 等仓库禁用 Catalog API 的情况进行友好提示
+			if strings.Contains(err.Error(), "UNAUTHORIZED") || strings.Contains(err.Error(), "unauthorized") {
+				fmt.Println("❌ 权限验证失败，或服务端拒绝了 Catalog 请求。")
+				fmt.Println("💡 提示：")
+				fmt.Println("   1. 请检查账号密码是否正确。")
+				fmt.Println("   2. 如果这是 Harbor 仓库，Harbor 默认禁用了 Docker 原生 Catalog API (/v2/_catalog)。")
+				fmt.Println("      这会导致无法使用 list-images 列出所有镜像，但 list-tags 和 migrate 功能不受影响。")
+				fmt.Println("      (请在 config.yaml 中直接指定具体的镜像名称进行迁移)")
+				os.Exit(1)
+			}
+			handleError(err)
+		}
 
 		if len(repos) == 0 {
 			fmt.Println("⚠️  仓库为空或无权查看目录。")
@@ -73,12 +86,10 @@ var listTagsCmd = &cobra.Command{
 			return
 		}
 
-		// 简单排序
 		sort.Strings(tags)
 
 		fmt.Printf("📋 共找到 %d 个标签，正在获取详细信息 (并发数: 10)...\n", len(tags))
 
-		// 使用 worker pool 并发获取详情
 		type result struct {
 			index int
 			info  *registry.TagDetail
@@ -86,15 +97,15 @@ var listTagsCmd = &cobra.Command{
 		}
 
 		resultsCh := make(chan result, len(tags))
-		sem := make(chan struct{}, 10) // 信号量
+		sem := make(chan struct{}, 10)
 		var wg sync.WaitGroup
 
 		for i, tag := range tags {
 			wg.Add(1)
 			go func(idx int, t string) {
 				defer wg.Done()
-				sem <- struct{}{}        // 获取令牌
-				defer func() { <-sem }() // 释放令牌
+				sem <- struct{}{}
+				defer func() { <-sem }()
 
 				info, err := client.GetTagDetail(context.Background(), repoName, t)
 				resultsCh <- result{index: idx, info: info, err: err}
@@ -124,11 +135,9 @@ var listTagsCmd = &cobra.Command{
 				displayName += " (*)"
 			}
 
-			// 处理架构显示，避免过长
 			archStr := "-"
 			if len(info.Architectures) > 0 {
 				joined := strings.Join(info.Architectures, ", ")
-				// 截断过长的架构列表，保持表格美观
 				if len(joined) > 50 {
 					archStr = joined[:47] + "..."
 				} else {
@@ -140,7 +149,6 @@ var listTagsCmd = &cobra.Command{
 
 			sizeStr := formatBytes(info.Size)
 			if info.IsIndex {
-				// 对于 Index，显示 "Index" 而不是 manifest size
 				sizeStr = "Index"
 			}
 
