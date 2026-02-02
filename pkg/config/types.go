@@ -26,11 +26,9 @@ type ImageEntry struct {
 
 // MigrateConfig 对应整个 config.yaml 文件的结构
 type MigrateConfig struct {
-	Source           RegistryConfig            `yaml:"source"`            // 源仓库（默认）
-	SourceRegistries map[string]RegistryConfig `yaml:"source_registries"` // 源仓库集合（可选）
-	Destination      RegistryConfig            `yaml:"destination"`       // 目标仓库
-	ImageList        string                    `yaml:"image_list"`        // 镜像列表（多行）
-	Images           []ImageEntry              `yaml:"images"`            // 镜像列表
+	SourceRegistries map[string]RegistryConfig `yaml:"source_registries"`      // 源仓库集合（可选）
+	DestinationRegs  map[string]RegistryConfig `yaml:"destination_registries"` // 目标仓库集合（必填）
+	ImageList        string                    `yaml:"image_list"`             // 镜像列表（多行）
 }
 
 func LoadConfig(path string) (*MigrateConfig, error) {

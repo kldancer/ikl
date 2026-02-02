@@ -1,9 +1,3 @@
-source:
-  registry: index.docker.io
-  username: ""
-  password: ""
-  insecure: false
-
 # 可选：为不同源仓库配置认证信息，仅私有仓库需要
 source_registries:
   registry.example.com:
@@ -11,11 +5,11 @@ source_registries:
     password: "your_password"
     insecure: true
 
-destination:
-  registry: ykl.io:40443
-  username: "admin"
-  password: "your_password"
-  insecure: true
+destination_registries:
+  ykl.io:40443:
+    username: "admin"
+    password: "your_password"
+    insecure: true
 
 image_list: |
   docker.io/rook/ceph:v1.19.0
@@ -27,23 +21,3 @@ image_list: |
   registry.k8s.io/sig-storage/csi-resizer:v2.0.0
   quay.io/csiaddons/k8s-sidecar:v0.14.0
   docker.io/library/nginx #arch=amd64,arm64
-
-images:
-  # 场景1：保留默认 Registry，但要迁移所有 tag
-  - name: library/python
-
-  # 场景2：指定架构，仅迁移 linux/amd64 和 linux/arm64
-  - name: library/nginx
-    tags:
-      - "latest"
-      - "alpine"
-    architectures:
-      - amd64
-      - arm64
-
-  # 场景3：仅迁移单个架构，例如只保留 amd64
-  - name: library/redis
-    tags:
-      - "7.2"
-    architectures:
-      - amd64

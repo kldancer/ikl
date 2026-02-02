@@ -35,7 +35,9 @@ var migrateCmd = &cobra.Command{
 
 		fmt.Println("🚀 开始执行镜像迁移任务...")
 		printSourceRegistries(cfg, images)
-		fmt.Printf("目标仓库: %s (Type: %s, Insecure: %v)\n", cfg.Destination.Registry, cfg.Destination.Type, cfg.Destination.Insecure)
+		dstRegistry, dstCfg, err := destinationConfig(cfg)
+		handleError(err)
+		fmt.Printf("目标仓库: %s (Type: %s, Insecure: %v)\n", dstRegistry, dstCfg.Type, dstCfg.Insecure)
 
 		if proxy != "" {
 			fmt.Printf("🌐 全局代理: %s\n", proxy)
@@ -51,12 +53,12 @@ var migrateCmd = &cobra.Command{
 		checkedProjects := make(map[string]bool)
 		var mu sync.Mutex
 
-		if strings.ToLower(cfg.Destination.Type) == "harbor" {
+		if strings.ToLower(dstCfg.Type) == "harbor" {
 			hClient, err := harbor.NewClient(
-				cfg.Destination.Registry,
-				cfg.Destination.Username,
-				cfg.Destination.Password,
-				cfg.Destination.Insecure,
+				dstRegistry,
+				dstCfg.Username,
+				dstCfg.Password,
+				dstCfg.Insecure,
 				proxy,
 				noProxy,
 			)
@@ -71,10 +73,10 @@ var migrateCmd = &cobra.Command{
 		srcClients := make(map[string]*registry.Client)
 
 		dstClient, err := registry.NewClient(
-			normalizeURL(cfg.Destination.Registry),
-			cfg.Destination.Username,
-			cfg.Destination.Password,
-			cfg.Destination.Insecure,
+			normalizeURL(dstRegistry),
+			dstCfg.Username,
+			dstCfg.Password,
+			dstCfg.Insecure,
 			proxy,
 			noProxy,
 		)
@@ -86,11 +88,7 @@ var migrateCmd = &cobra.Command{
 
 		// 3. 遍历镜像列表
 		for _, img := range images {
-			registryURL := img.Registry
-			if registryURL == "" {
-				registryURL = cfg.Source.Registry
-			}
-			registryURL = normalizeURL(registryURL)
+			registryURL := normalizeURL(img.Registry)
 
 			srcClient, ok := srcClients[registryURL]
 			if !ok {
@@ -229,8 +227,7 @@ func sourceConfigForRegistry(cfg *config.MigrateConfig, registryURL string) conf
 		}
 	}
 
-	base := cfg.Source
-	return withRegistryFallback(base, registryURL)
+	return withRegistryFallback(config.RegistryConfig{}, registryURL)
 }
 
 func withRegistryFallback(cfg config.RegistryConfig, registryURL string) config.RegistryConfig {
@@ -243,11 +240,7 @@ func withRegistryFallback(cfg config.RegistryConfig, registryURL string) config.
 func printSourceRegistries(cfg *config.MigrateConfig, images []config.ImageEntry) {
 	registrySet := make(map[string]struct{})
 	for _, img := range images {
-		registry := img.Registry
-		if registry == "" {
-			registry = cfg.Source.Registry
-		}
-		registry = normalizeURL(registry)
+		registry := normalizeURL(img.Registry)
 		if registry != "" {
 			registrySet[registry] = struct{}{}
 		}
@@ -267,4 +260,18 @@ func printSourceRegistries(cfg *config.MigrateConfig, images []config.ImageEntry
 		}
 		fmt.Printf("  - %s (Insecure: %v, %s)\n", registryURL, regCfg.Insecure, authLabel)
 	}
+}
+
+func destinationConfig(cfg *config.MigrateConfig) (string, config.RegistryConfig, error) {
+	if len(cfg.DestinationRegs) == 0 {
+		return "", config.RegistryConfig{}, fmt.Errorf("destination_registries 不能为空")
+	}
+	if len(cfg.DestinationRegs) > 1 {
+		return "", config.RegistryConfig{}, fmt.Errorf("destination_registries 仅支持配置一个目标仓库")
+	}
+	for registry, regCfg := range cfg.DestinationRegs {
+		registry = normalizeURL(registry)
+		return registry, withRegistryFallback(regCfg, registry), nil
+	}
+	return "", config.RegistryConfig{}, fmt.Errorf("destination_registries 未配置有效目标仓库")
 }
