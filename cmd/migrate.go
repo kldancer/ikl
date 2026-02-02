@@ -30,9 +30,14 @@ var migrateCmd = &cobra.Command{
 		cfg, err := config.LoadConfig(configPath)
 		handleError(err)
 
+		images, err := cfg.ResolveImages()
+		handleError(err)
+
 		fmt.Println("🚀 开始执行镜像迁移任务...")
-		fmt.Printf("源仓库: %s (Insecure: %v)\n", cfg.Source.Registry, cfg.Source.Insecure)
-		fmt.Printf("目标仓库: %s (Type: %s, Insecure: %v)\n", cfg.Destination.Registry, cfg.Destination.Type, cfg.Destination.Insecure)
+		printSourceRegistries(cfg, images)
+		dstRegistry, dstCfg, err := destinationConfig(cfg)
+		handleError(err)
+		fmt.Printf("目标仓库: %s (Type: %s, Insecure: %v)\n", dstRegistry, dstCfg.Type, dstCfg.Insecure)
 
 		if proxy != "" {
 			fmt.Printf("🌐 全局代理: %s\n", proxy)
@@ -48,12 +53,12 @@ var migrateCmd = &cobra.Command{
 		checkedProjects := make(map[string]bool)
 		var mu sync.Mutex
 
-		if strings.ToLower(cfg.Destination.Type) == "harbor" {
+		if strings.ToLower(dstCfg.Type) == "harbor" {
 			hClient, err := harbor.NewClient(
-				cfg.Destination.Registry,
-				cfg.Destination.Username,
-				cfg.Destination.Password,
-				cfg.Destination.Insecure,
+				dstRegistry,
+				dstCfg.Username,
+				dstCfg.Password,
+				dstCfg.Insecure,
 				proxy,
 				noProxy,
 			)
@@ -65,21 +70,13 @@ var migrateCmd = &cobra.Command{
 		}
 
 		// 2. 初始化 Registry 客户端
-		srcClient, err := registry.NewClient(
-			normalizeURL(cfg.Source.Registry),
-			cfg.Source.Username,
-			cfg.Source.Password,
-			cfg.Source.Insecure,
-			proxy,
-			noProxy,
-		)
-		handleError(err)
+		srcClients := make(map[string]*registry.Client)
 
 		dstClient, err := registry.NewClient(
-			normalizeURL(cfg.Destination.Registry),
-			cfg.Destination.Username,
-			cfg.Destination.Password,
-			cfg.Destination.Insecure,
+			normalizeURL(dstRegistry),
+			dstCfg.Username,
+			dstCfg.Password,
+			dstCfg.Insecure,
 			proxy,
 			noProxy,
 		)
@@ -90,7 +87,25 @@ var migrateCmd = &cobra.Command{
 		failCount := 0
 
 		// 3. 遍历镜像列表
-		for _, img := range cfg.Images {
+		for _, img := range images {
+			registryURL := normalizeURL(img.Registry)
+
+			srcClient, ok := srcClients[registryURL]
+			if !ok {
+				srcCfg := sourceConfigForRegistry(cfg, registryURL)
+				client, err := registry.NewClient(
+					registryURL,
+					srcCfg.Username,
+					srcCfg.Password,
+					srcCfg.Insecure,
+					proxy,
+					noProxy,
+				)
+				handleError(err)
+				srcClients[registryURL] = client
+				srcClient = client
+			}
+
 			dstName := img.TargetName
 			if dstName == "" {
 				dstName = img.Name
@@ -197,4 +212,66 @@ func normalizeURL(u string) string {
 	u = strings.TrimPrefix(u, "http://")
 	u = strings.TrimPrefix(u, "https://")
 	return strings.TrimSuffix(u, "/")
+}
+
+func sourceConfigForRegistry(cfg *config.MigrateConfig, registryURL string) config.RegistryConfig {
+	if cfg.SourceRegistries != nil {
+		if regCfg, ok := cfg.SourceRegistries[registryURL]; ok {
+			return withRegistryFallback(regCfg, registryURL)
+		}
+		normalizedRegistry := normalizeURL(registryURL)
+		for key, regCfg := range cfg.SourceRegistries {
+			if normalizeURL(key) == normalizedRegistry {
+				return withRegistryFallback(regCfg, registryURL)
+			}
+		}
+	}
+
+	return withRegistryFallback(config.RegistryConfig{}, registryURL)
+}
+
+func withRegistryFallback(cfg config.RegistryConfig, registryURL string) config.RegistryConfig {
+	if cfg.Registry == "" {
+		cfg.Registry = registryURL
+	}
+	return cfg
+}
+
+func printSourceRegistries(cfg *config.MigrateConfig, images []config.ImageEntry) {
+	registrySet := make(map[string]struct{})
+	for _, img := range images {
+		registry := normalizeURL(img.Registry)
+		if registry != "" {
+			registrySet[registry] = struct{}{}
+		}
+	}
+
+	if len(registrySet) == 0 {
+		fmt.Println("源仓库: (未指定)")
+		return
+	}
+
+	fmt.Println("源仓库列表:")
+	for registryURL := range registrySet {
+		regCfg := sourceConfigForRegistry(cfg, registryURL)
+		authLabel := "匿名"
+		if regCfg.Username != "" || regCfg.Password != "" {
+			authLabel = "需要认证"
+		}
+		fmt.Printf("  - %s (Insecure: %v, %s)\n", registryURL, regCfg.Insecure, authLabel)
+	}
+}
+
+func destinationConfig(cfg *config.MigrateConfig) (string, config.RegistryConfig, error) {
+	if len(cfg.DestinationRegs) == 0 {
+		return "", config.RegistryConfig{}, fmt.Errorf("destination_registries 不能为空")
+	}
+	if len(cfg.DestinationRegs) > 1 {
+		return "", config.RegistryConfig{}, fmt.Errorf("destination_registries 仅支持配置一个目标仓库")
+	}
+	for registry, regCfg := range cfg.DestinationRegs {
+		registry = normalizeURL(registry)
+		return registry, withRegistryFallback(regCfg, registry), nil
+	}
+	return "", config.RegistryConfig{}, fmt.Errorf("destination_registries 未配置有效目标仓库")
 }

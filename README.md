@@ -54,6 +54,36 @@ go build -o ikl
 
 准备配置文件（见 `config.example.yaml`）：
 
+#### 配置说明
+
+```yaml
+# 可选：为不同源仓库配置认证信息（仅私有仓库需要）
+source_registries:
+  registry.example.com:
+    username: "your_user"
+    password: "your_password"
+    insecure: true
+
+# 必填：目标仓库配置（格式与 source_registries 一致，当前仅支持一个目标仓库）
+destination_registries:
+  ykl.io:40443:
+    username: "admin"
+    password: "your_password"
+    insecure: true
+
+# 多行镜像列表：默认拉取 amd64/arm64；未写 tag 默认 latest
+image_list: |
+  docker.io/rook/ceph:v1.19.0
+  quay.io/cephcsi/cephcsi:v3.16.0
+  docker.io/library/nginx #arch=amd64,arm64
+```
+
+说明：
+- `image_list` 支持 `#arch=amd64,arm64` 指定架构；不写时默认迁移 amd64/arm64。
+- `image_list` 中不写 tag 时默认 `latest`。
+- `source_registries` 可选，仅私有源仓库需要配置账号密码。
+- `destination_registries` 必填，格式与 `source_registries` 一致，当前仅支持一个目标仓库。
+
 ```bash
 ./ikl migrate --config config.yaml --proxy http://127.0.0.1:7897 --no-proxy ykl.io
 
@@ -61,7 +91,8 @@ API server listening at: 127.0.0.1:4919
 
 🚀 开始执行镜像迁移任务...
 
-源仓库: index.docker.io (Insecure: false)
+源仓库列表:
+  - index.docker.io (Insecure: false, 匿名)
 
 目标仓库: ykl.io:40443 (Insecure: true)
 
