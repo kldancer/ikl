@@ -69,6 +69,13 @@ var migrateCmd = &cobra.Command{
 			fmt.Println("⚓️ 已启用 Harbor 自动项目管理")
 		}
 
+		if strings.ToLower(dstCfg.Type) == "ali" {
+			if dstCfg.Namespace == "" {
+				handleError(fmt.Errorf("ali 类型仓库必须配置 namespace"))
+			}
+			fmt.Printf("☁️  已启用阿里云模式，命名空间: %s\n", dstCfg.Namespace)
+		}
+
 		// 2. 初始化 Registry 客户端
 		srcClients := make(map[string]*registry.Client)
 
@@ -110,6 +117,15 @@ var migrateCmd = &cobra.Command{
 			if dstName == "" {
 				dstName = img.Name
 			}
+
+			// --- 阿里云命名空间处理 ---
+			if strings.ToLower(dstCfg.Type) == "ali" {
+				// 阿里云不支持多级路径 (ns/repo)，因此需要打平源镜像路径
+				// 将 google_containers/kube-apiserver 转换为 google_containers-kube-apiserver
+				flattenedName := strings.ReplaceAll(img.Name, "/", "-")
+				dstName = fmt.Sprintf("%s/%s", strings.Trim(dstCfg.Namespace, "/"), flattenedName)
+			}
+			// ------------------------
 
 			// --- Harbor 项目自动创建逻辑 ---
 			if harborClient != nil {

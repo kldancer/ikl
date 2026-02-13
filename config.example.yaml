@@ -6,10 +6,19 @@ source_registries:
     insecure: true
 
 destination_registries:
-  ykl.io:40443:
-    username: "admin"
-    password: "your_password"
-    insecure: true
+  # 示例 1: 私有 Harbor 仓库
+  # ykl.io:40443:
+  #   username: "admin"
+  #   password: "your_password"
+  #   insecure: true
+  #   type: "harbor"
+
+  # 示例 2: 阿里云容器镜像服务 (个人版/企业版)
+  registry.cn-hangzhou.aliyuncs.com:
+    username: "your_aliyun_user"
+    password: "your_registry_password"
+    type: "ali"
+    namespace: "your-ns"
 
 image_list: |
   docker.io/rook/ceph:v1.19.0

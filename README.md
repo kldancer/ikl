@@ -70,6 +70,7 @@ destination_registries:
     username: "admin"
     password: "your_password"
     insecure: true
+    type: "harbor" # 仓库类型，支持 "harbor", "ali"。如果是普通repo不需要填写。
 
 # 多行镜像列表：默认拉取 amd64/arm64；未写 tag 默认 latest
 image_list: |
@@ -78,11 +79,17 @@ image_list: |
   docker.io/library/nginx #arch=amd64,arm64
 ```
 
-说明：
+配置说明：
 - `image_list` 支持 `#arch=amd64,arm64` 指定架构；不写时默认迁移 amd64/arm64。
 - `image_list` 中不写 tag 时默认 `latest`。
 - `source_registries` 可选，仅私有源仓库需要配置账号密码。
 - `destination_registries` 必填，格式与 `source_registries` 一致，当前仅支持一个目标仓库。
+- `type`，如果是阿里云容器镜像私人仓库的话，还需要填写namespace，参考：[config-test-ali.yaml](config-test-ali.yaml)
+
+命令行参数说明：
+- `--config` 配置文件路径
+- `--proxy` 拉镜像可能会用到代理
+- `--no-proxy` 指定本地仓库不走代理
 
 ```bash
 ./ikl migrate --config config.yaml --proxy http://127.0.0.1:7897 --no-proxy ykl.io

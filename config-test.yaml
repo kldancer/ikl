@@ -1,9 +1,0 @@
-destination_registries:
-  jusuan.io:8080:
-    username: "admin"
-    password: "Harbor12345"
-    insecure: true
-    type: harbor
-
-image_list: |
-  quay.io/ceph/ceph:v19 #arch=amd64,arm64

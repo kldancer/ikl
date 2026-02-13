@@ -1,0 +1,15 @@
+destination_registries:
+  jusuan.io:8080:
+    username: "admin"
+    password: "Harbor12345"
+    insecure: true
+    type: harbor
+
+image_list: |
+  registry.aliyuncs.com/google_containers/kube-apiserver:v1.34.4
+  registry.aliyuncs.com/google_containers/kube-controller-manager:v1.34.4
+  registry.aliyuncs.com/google_containers/kube-scheduler:v1.34.4
+  registry.aliyuncs.com/google_containers/kube-proxy:v1.34.4
+  registry.aliyuncs.com/google_containers/coredns:v1.12.1
+  registry.aliyuncs.com/google_containers/pause:3.10.1
+  registry.aliyuncs.com/google_containers/etcd:3.6.5-0
