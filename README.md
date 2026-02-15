@@ -70,7 +70,7 @@ destination_registries:
     username: "admin"
     password: "your_password"
     insecure: true
-    type: "harbor" # 仓库类型，支持 "harbor", "ali"。如果是普通repo不需要填写。
+    type: "harbor" # 仓库类型，支持 "harbor"。如果是普通repo不需要填写。
 
 # 多行镜像列表：默认拉取 amd64/arm64；未写 tag 默认 latest
 image_list: |
@@ -84,7 +84,7 @@ image_list: |
 - `image_list` 中不写 tag 时默认 `latest`。
 - `source_registries` 可选，仅私有源仓库需要配置账号密码。
 - `destination_registries` 必填，格式与 `source_registries` 一致，当前仅支持一个目标仓库。
-- `type`，如果是阿里云容器镜像私人仓库的话，还需要填写namespace，参考：[config-test-ali.yaml](config-test-ali.yaml)
+- `type`仓库类型，支持 "harbor"。如果是普通repo不需要填写。
 
 命令行参数说明：
 - `--config` 配置文件路径

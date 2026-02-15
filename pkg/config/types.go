@@ -8,12 +8,11 @@ import (
 
 // RegistryConfig 定义单个仓库的连接信息
 type RegistryConfig struct {
-	Registry  string `yaml:"registry"`  // 仓库地址
-	Username  string `yaml:"username"`  // 用户名
-	Password  string `yaml:"password"`  // 密码
-	Insecure  bool   `yaml:"insecure"`  // 是否跳过 TLS 验证
-	Type      string `yaml:"type"`      // [新增] 仓库类型，例如 "harbor", "ali"
-	Namespace string `yaml:"namespace"` // [新增] 命名空间，例如阿里云 ACR 的命名空间
+	Registry string `yaml:"registry"` // 仓库地址
+	Username string `yaml:"username"` // 用户名
+	Password string `yaml:"password"` // 密码
+	Insecure bool   `yaml:"insecure"` // 是否跳过 TLS 验证
+	Type     string `yaml:"type"`     // [新增] 仓库类型， "harbor"
 }
 
 // ImageEntry 定义要迁移的镜像条目
