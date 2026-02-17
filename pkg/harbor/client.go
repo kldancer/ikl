@@ -79,7 +79,7 @@ func (c *Client) EnsureProject(project string) error {
 	if err != nil && strings.Contains(err.Error(), "server gave HTTP response to HTTPS client") {
 		if strings.HasPrefix(c.BaseURL, "https://") {
 			newURL := strings.Replace(c.BaseURL, "https://", "http://", 1)
-			fmt.Printf("🔄 [Harbor] 检测到服务端返回 HTTP，自动降级协议重试 (%s -> %s)...\n", c.BaseURL, newURL)
+			// fmt.Printf("🔄 [Harbor] 检测到服务端返回 HTTP，自动降级协议重试 (%s -> %s)...\n", c.BaseURL, newURL)
 
 			// 更新客户端的 BaseURL，后续 createProject 也会使用这个新地址
 			c.BaseURL = newURL

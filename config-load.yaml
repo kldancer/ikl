@@ -1,0 +1,7 @@
+destination_registries:
+  ykl.io:8080:
+    username: "admin"
+    password: "Harbor12345"
+    insecure: true
+    type: harbor
+
