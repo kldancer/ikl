@@ -1,4 +1,4 @@
-**ikl** 是一个使用 Go 语言编写的轻量级容器镜像管理命令行工具（CLI）。它主要用于私有镜像仓库（如 Harbor、Docker Registry）的镜像查看、标签检索以及**多架构镜像迁移**。
+**ikl** 是一个使用 Go 语言编写的轻量级容器镜像管理命令行工具（CLI）。它主要用于私有镜像仓库（如 Harbor、Docker Registry）的镜像查看、标签检索、**多架构镜像在线迁移**以及**离线导出与导入**。
 
 以下是该项目的详细技术实现细节分析：
 
@@ -6,21 +6,22 @@
 
 * **语言**: Go (Go 1.25)
 * **核心库**: `github.com/google/go-containerregistry`。这是 Google 官方提供的处理 OCI（Open Container Initiative）镜像标准的库，也是该工具底层与镜像仓库交互的核心。
-* **CLI 框架**: `github.com/spf13/cobra`，用于构建命令行应用的子命令（migrate, list-images 等）和参数解析。
+* **CLI 框架**: `github.com/spf13/cobra`，用于构建命令行应用的子命令（migrate, list-images, save, load 等）和参数解析。
 * **UI/交互**:
-* `github.com/olekukonko/tablewriter`: 终端表格渲染。
-* `github.com/schollz/progressbar/v3`: 迁移时的进度条显示。
-
-
+    * `github.com/olekukonko/tablewriter`: 终端表格渲染。
+    * `github.com/schollz/progressbar/v3`: 迁移与导出导入时的进度条显示。
 
 ### 2. 核心架构模块
 
 项目采用了典型的分层架构：
 
-* **cmd/**: 命令行入口与业务逻辑编排。
-* **pkg/registry/**: 通用 OCI 仓库客户端封装，处理底层的镜像拉取、推送和清单解析。
-* **pkg/harbor/**: 针对 Harbor 仓库的特定 API 封装（非 OCI 标准部分，如项目管理）。
-* **pkg/config/**: 配置文件解析与数据标准化。
+* **cmd/**: 命令行入口与业务逻辑编排，包含 `migrate`, `save`, `load`, `list` 等核心子命令。
+* **pkg/registry/**: 核心模块。
+    * `client.go`: 通用 OCI 仓库客户端封装，处理镜像拉取、推送、清单解析及多架构过滤。
+    * `layout.go`: **OCI Image Layout** 支持，负责镜像的本地持久化存储（Save/Load）及离线包的打包/解包（Tar/Gzip）。
+* **pkg/harbor/**: 针对 Harbor 仓库的特定 API 封装（如自动创建项目）。
+* **pkg/config/**: 配置文件解析、数据标准化及镜像列表指令解析。
+* **pkg/ui/**: 封装终端交互组件。
 
 ---
 
@@ -28,84 +29,45 @@
 
 #### A. 镜像迁移与多架构支持 (Core Feature)
 
-这是该工具最复杂的部分，主要在 `cmd/migrate.go` 和 `pkg/registry/client.go` 中实现。
+在 `pkg/registry/client.go` 中实现。
 
 1. **Manifest List (Index) 的处理**:
-* 工具不仅是简单的复制 Layer，它能够感知 **Manifest List**（即多架构镜像的索引）。
-* **架构过滤 (`filteredIndex`)**: 在 `pkg/registry/client.go` 的 `CopyImage` 函数中，实现了一个自定义结构体 `filteredIndex`。
-* 当源镜像是多架构（Index）且用户指定了特定架构（如只迁移 `linux/amd64`）时，工具不会盲目复制整个 Index。
-* 它会解析原始 Index，筛选出符合 `platforms` 要求的 Manifest 描述符。
-* 然后重新构造一个新的 Index（仅包含被选中的架构）推送到目标仓库。
-* **代码引用**: `pkg/registry/client.go` 中的 `filteredIndex` 结构体及其 `IndexManifest` 方法。
+    * 工具能够感知 **Manifest List**（多架构镜像索引）。
+    * **架构过滤 (`filteredIndex`)**: 实现了一个自定义装饰器 `filteredIndex`。当用户指定架构（如 `linux/amd64`）时，工具会筛选原始 Index 中的 Manifest 描述符，重新构造一个仅包含选中架构的 Index 推送到目标。
+2. **流式传输**: 利用 `remote.Write` 和 `remote.WriteIndex`，Blob 数据通常通过流式传输直接从源 Pipe 到目标，避免内存爆涨。
 
+#### B. 离线导出与导入 (Offline Support)
 
+这是针对内网/隔离环境设计的核心功能，主要在 `pkg/registry/layout.go` 实现。
 
+1. **OCI Image Layout 存储**:
+    * **导出 (`save`)**: 工具将远程镜像拉取并写入符合 OCI 标准的本地目录结构（OCI Layout）。
+    * **元数据保留**: 在写入 Layout 时，通过 **OCI Annotations**（如 `ikl.original.repo`, `ikl.original.tag`）记录镜像的原始名称和标签。这使得在执行 `load` 导入时，即使离线包内只有 Digest，也能还原出原始的镜像路径。
+    * **多架构支持**: 导出时同样支持架构筛选，减少离线包体积。
+2. **离线包封装 (Bundle)**:
+    * 使用 Tar + Gzip 将 OCI Layout 目录打包成单文件，方便分发。
+3. **自动化导入 (`load`)**:
+    * 导入时自动解压并读取 Layout 中的索引信息。
+    * 结合配置文件中的 `TargetName` 映射，支持在导入过程中对镜像进行重命名。
 
-2. **流式传输**:
-* 利用 `remote.Write` 和 `remote.WriteIndex`，工具在内存中处理 Manifest，但 Blob（实际镜像层数据）通常通过流式传输直接从源 Pipe 到目标，或者根据库的实现进行高效传输，避免占用过大内存。
+#### C. 仓库交互与 Harbor 集成
 
+1. **通用 V2 适配**: 支持所有符合 Docker Registry V2 标准的仓库，提供 `Insecure` 模式支持内网自签名证书。
+2. **代理与直连**: 实现了灵活的全局 `HTTP_PROXY` 支持，并能根据 `NoProxy` 列表自动判断内网仓库是否跳过代理。
+3. **Harbor 自动化**: 识别目标为 Harbor 时，推送前会自动检查并调用 API 创建不存在的项目（Project），并支持 HTTPS 到 HTTP 的自动降级。
 
-3. **并发进度条**:
-* 使用 Go Channel (`chan v1.Update`) 将底层的传输进度实时反馈到 UI 层。
+#### D. 配置系统与指令解析
 
+* **行内指令**: 支持在镜像列表字符串中使用 `#arch=amd64` 等后缀指令，实现精细化的迁移策略控制。
 
-
-#### B. 仓库交互 (Registry Client)
-
-位于 `pkg/registry/client.go`。
-
-1. **通用适配**:
-* 通过 `name.NewRegistry` 和 `remote.Catalog` 实现对所有符合 Docker V2 API 标准的仓库的支持。
-* **Insecure 模式**: 支持跳过 TLS 验证 (`InsecureSkipVerify: true`)，这对于内网自签名的私有仓库非常重要。
-* **代理支持**: 自定义了 `http.Transport`，实现了对 `HTTP_PROXY` 的支持，并且通过 `NoProxy` 逻辑实现了对特定域名的直连（代码中通过逗号分隔的字符串手动解析判断）。
-
-
-2. **并发获取标签详情**:
-* 在 `cmd/list.go` (`list-tags` 命令) 中，为了提高性能，工具使用了 **Worker Pool** 模式。
-* 获取 Tag 列表后，开启了并发数限制（代码中硬编码为 `sem <- struct{}{}` 限制并发数为 10）的 Goroutines 去并发请求每个 Tag 的详细信息（大小、架构、创建时间）。
-
-
-
-#### C. Harbor 特性集成
-
-位于 `pkg/harbor/client.go`。
-
-* **自动创建项目**: 标准 OCI API 只能推镜像，不能创建项目（Project/Namespace）。
-* 该工具识别出目标仓库类型为 `harbor` 时，会额外初始化一个 Harbor Client。
-* 在推送镜像前，它会调用 Harbor 的 REST API (`/api/v2.0/projects`) 检查项目是否存在。如果不存在，则自动创建私有项目。
-* **协议降级 (Fallback)**: 代码中包含了一个有趣的鲁棒性设计。如果配置使用 HTTPS 连接 Harbor，但服务端返回 "server gave HTTP response to HTTPS client"，它会自动降级为 HTTP 重试。
-
-#### D. 配置系统
-
-位于 `pkg/config/`。
-
-* **混合配置解析**: 配置文件不仅是标准的 YAML，其 `image_list` 字段是一个多行字符串。
-* **行内指令解析**: 在 `normalize.go` 中，工具手动解析每一行镜像字符串，支持行尾注释样式的指令 `#arch=amd64,arm64`。这允许用户为列表中的不同镜像指定不同的迁移架构策略。
+---
 
 ### 4. 代码亮点与设计模式
 
-1. **Decorator / Wrapper 模式**:
-* `filteredIndex` 结构体包装了原始的 `v1.ImageIndex`，重写了 `IndexManifest` 方法来改变行为（过滤架构），这是典型的装饰器模式应用，非常优雅地利用了接口多态性。
-
-
-2. **Semaphore (信号量)模式**:
-* 在 `cmd/list.go` 中使用 `chan struct{}` 作为信号量来控制并发请求数量，防止对仓库服务端造成过大压力（DDoS）。
-
-
-```go
-sem := make(chan struct{}, 10) // 限制并发数为 10
-// ...
-sem <- struct{}{}
-defer func() { <-sem }()
-
-```
-
-
-3. **Cobra 命令行结构**:
-* 利用 `init()` 函数和全局变量 (`rootCmd`, `proxy`, `noProxy`) 注册 Flag，使得参数可以在子命令间共享（如代理设置）。
-
-
+1. **Decorator (装饰器模式)**: `filteredIndex` 完美包装了 `v1.ImageIndex`，在不改变原有库接口的前提下实现了架构过滤。
+2. **Semaphore (信号量)**: 在标签列表查询等高并发场景，使用 Channel 信号量精准控制并发数（Worker Pool），平衡性能与服务端负载。
+3. **Fallback 机制**: 针对内网复杂的网络协议环境，实现了连接协议的自动降级重试。
 
 ### 总结
 
-**ikl** 是一个专注于**特定痛点**（私有仓库间迁移、多架构筛选、Harbor 项目自动创建）的工具。它没有试图重新发明轮子，而是基于强大的 Google Container Registry 库进行了业务逻辑封装，代码结构清晰，针对内网环境（代理、自签名证书）做了很多适配工作。
+**ikl** 是一个专注于**特定痛点**（私有仓库间迁移、多架构筛选、离线环境部署、Harbor 项目自动管理）的工程化工具。它基于标准的 OCI 规范进行设计，通过 OCI Layout 解决了镜像跨网迁移的可靠性问题，是一个典型的“小而美”的 DevOps 工具。
