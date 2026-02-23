@@ -1,7 +1,7 @@
 package main
 
 import (
-	"ikl/cmd"
+	"Imt/cmd"
 	"os"
 )
 

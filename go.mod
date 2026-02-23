@@ -1,4 +1,4 @@
-module ikl
+module Imt
 
 go 1.25
 

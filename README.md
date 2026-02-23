@@ -1,11 +1,11 @@
-# ikl
+# Imt
 
 镜像管理工具，支持查看私有仓库镜像与标签，并在仓库之间迁移镜像（包含多架构清单）。
 
 ## 构建
 
 ```bash
-go build -o ikl
+go build -o Imt main.go
 ```
 
 ## 使用
@@ -13,7 +13,7 @@ go build -o ikl
 ### 列出仓库中的镜像列表
 
 ```bash
-$ ./ikl list-images --registry ykl.io:40443 --insecure
+$ ./Imt list-images --registry ykl.io:40443 --insecure
 
 🔍 正在连接仓库 ykl.io:40443 获取目录...
 序号	镜像仓库名称 (REPOSITORY)                 
@@ -35,14 +35,14 @@ $ ./ikl list-images --registry ykl.io:40443 --insecure
 ### 列出某镜像的标签列表
 
 ```bash
-$ ./ikl list-tags --registry ykl.io:40443 --repo library/redis --insecure
+$ ./Imt list-tags --registry ykl.io:40443 --repo library/redis --insecure
 
 🔍 正在获取 ykl.io:40443/library/redis 的标签列表...
 📋 共找到 1 个标签，正在获取详细信息 (并发数: 10)...
 序号	标签 (TAG)	架构 (ARCH)	大小 (SIZE)	创建时间 (CREATED) 
 1   	7.2       	linux/amd64	42.5 MB    	2026-01-13 10:01  
 
-./ikl list-tags --registry ykl.io:40443 --repo library/golang --insecure
+./Imt list-tags --registry ykl.io:40443 --repo library/golang --insecure
 🔍 正在获取 ykl.io:40443/library/golang 的标签列表...
 📋 共找到 2 个标签，正在获取详细信息 (并发数: 10)...
 序号	标签 (TAG)        	架构 (ARCH)                	大小 (SIZE)	创建时间 (CREATED) 
@@ -92,7 +92,7 @@ image_list: |
 - `--no-proxy` 指定本地仓库不走代理
 
 ```bash
-$ ./ikl migrate --config config.yaml --proxy http://127.0.0.1:7897 --no-proxy ykl.io
+$ ./Imt migrate --config config.yaml --proxy http://127.0.0.1:7897 --no-proxy ykl.io
 
 API server listening at: 127.0.0.1:4919
 
@@ -144,7 +144,7 @@ API server listening at: 127.0.0.1:4919
 **注： 在实际生产环境中，harbor镜像仓库的环境通常无法访外网，所以通常需要准备离线镜像包用来导入到私有镜像仓库中。此时可以使用以下两个功能: **
 
 ### 导出镜像
-从源仓库导出镜像并保存为离线 OCI Image Bundle
+从源仓库导出镜像并保存为离线 OCI Image Bundle。支持 **断点续传**：通过 `--workspace` 指定一个持久化目录，任务失败后重新运行可跳过已完成的镜像。
 
 config-save.yaml
 ```yaml
@@ -169,7 +169,7 @@ image_list: |
 ```
 执行结果：
 ```bash
-$ ./ikl save --config config-save.yaml --output my-bundle.tar --proxy http://127.0.0.1:7897
+$ ./Imt save --config config-save.yaml --output my-bundle.tar --proxy http://127.0.0.1:7897 --workspace ./my-save-work
 🌐 全局代理: http://127.0.0.1:7897
 📦 开始导出 17 个镜像到离线包...
 [1/17] 正在导出 registry.aliyuncs.com/google_containers/kube-apiserver:v1.34.4 ([amd64 arm64])...
@@ -208,7 +208,7 @@ destination_registries:
 ```
 执行结果
 ```bash
-$ ./ikl load --config config-load.yaml --input my-bundle.tar 
+$ ./Imt load --config config-load.yaml --input my-bundle.tar 
 📂 正在解压离线包 my-bundle.tar...
 🚀 准备从离线包导入 17 个镜像到 ykl.io:8080...
 [1/17] 正在导入 google_containers/kube-apiserver:v1.34.4 -> google_containers/kube-apiserver:v1.34.4 ...

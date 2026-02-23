@@ -1,10 +1,10 @@
 package cmd
 
 import (
+	"Imt/pkg/registry"
+	"Imt/pkg/ui"
 	"context"
 	"fmt"
-	"ikl/pkg/registry"
-	"ikl/pkg/ui"
 	"os"
 	"sort"
 	"strings"
@@ -24,7 +24,7 @@ var (
 var listImagesCmd = &cobra.Command{
 	Use:     "list-images",
 	Short:   "列出仓库中的所有镜像名称",
-	Example: `  ikl list-images --registry registry.example.com --user admin --pass 123456 --proxy http://127.0.0.1:7890`,
+	Example: `  Imt list-images --registry registry.example.com --user admin --pass 123456 --proxy http://127.0.0.1:7890`,
 	Run: func(cmd *cobra.Command, args []string) {
 		validateRegistryArgs()
 
@@ -66,7 +66,7 @@ var listImagesCmd = &cobra.Command{
 var listTagsCmd = &cobra.Command{
 	Use:     "list-tags",
 	Short:   "列出指定镜像的所有标签详情",
-	Example: `  ikl list-tags --registry registry.example.com --repo my-app/worker --insecure --proxy http://127.0.0.1:7890`,
+	Example: `  Imt list-tags --registry registry.example.com --repo my-app/worker --insecure --proxy http://127.0.0.1:7890`,
 	Run: func(cmd *cobra.Command, args []string) {
 		validateRegistryArgs()
 		if repoName == "" {

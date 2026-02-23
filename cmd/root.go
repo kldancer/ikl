@@ -14,7 +14,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "ikl",
+	Use:   "Imt",
 	Short: "IKL - 简易高效的容器镜像管理工具",
 	Long: `IKL 是一个用于管理 Docker 私有仓库的命令行工具。
 支持查看镜像列表、Tag 列表，以及支持多架构（AMD64/ARM64）的镜像迁移。`,

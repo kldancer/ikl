@@ -42,8 +42,8 @@ func (c *Client) SaveToLayout(ctx context.Context, repo, tag string, path string
 
 	annotations := map[string]string{
 		"org.opencontainers.image.ref.name": fmt.Sprintf("%s/%s:%s", c.URL, repo, tag),
-		"ikl.original.repo":                 repo,
-		"ikl.original.tag":                  tag,
+		"Imt.original.repo":                 repo,
+		"Imt.original.tag":                  tag,
 	}
 
 	if desc.MediaType.IsIndex() {
@@ -117,7 +117,12 @@ type LayoutImage struct {
 }
 
 // GetLayoutImages 获取 OCI Layout 中的所有镜像信息
-func GetLayoutImages(lp layout.Path) ([]LayoutImage, error) {
+func GetLayoutImages(path string) ([]LayoutImage, error) {
+	if _, err := os.Stat(filepath.Join(path, "oci-layout")); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	lp := layout.Path(path)
 	index, err := lp.ImageIndex()
 	if err != nil {
 		return nil, fmt.Errorf("读取 OCI Layout 失败: %w", err)
@@ -131,8 +136,8 @@ func GetLayoutImages(lp layout.Path) ([]LayoutImage, error) {
 	var images []LayoutImage
 	for _, m := range manifest.Manifests {
 		img := LayoutImage{
-			OriginalRepo: m.Annotations["ikl.original.repo"],
-			OriginalTag:  m.Annotations["ikl.original.tag"],
+			OriginalRepo: m.Annotations["Imt.original.repo"],
+			OriginalTag:  m.Annotations["Imt.original.tag"],
 			Annotations:  m.Annotations,
 			Descriptor:   m,
 		}
@@ -142,14 +147,30 @@ func GetLayoutImages(lp layout.Path) ([]LayoutImage, error) {
 	return images, nil
 }
 
+// ImageExists 检查镜像是否已存在于 OCI Layout 中
+func ImageExists(path string, repo, tag string) (bool, error) {
+	images, err := GetLayoutImages(path)
+	if err != nil {
+		return false, err
+	}
+
+	for _, img := range images {
+		if img.OriginalRepo == repo && img.OriginalTag == tag {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // LoadFromLayout 从本地 OCI Layout 目录读取指定镜像并推送到目标仓库
-func (c *Client) LoadFromLayout(ctx context.Context, lp layout.Path, desc v1.Descriptor, targetRepo, targetTag string, progressCh chan<- v1.Update) error {
+func (c *Client) LoadFromLayout(ctx context.Context, path string, desc v1.Descriptor, targetRepo, targetTag string, progressCh chan<- v1.Update) error {
 	targetRefStr := fmt.Sprintf("%s/%s:%s", c.URL, targetRepo, targetTag)
 	targetRef, err := name.ParseReference(targetRefStr, getNameOptions(c.Insecure)...)
 	if err != nil {
 		return fmt.Errorf("解析目标镜像地址失败: %w", err)
 	}
 
+	lp := layout.Path(path)
 	rootIdx, err := lp.ImageIndex()
 	if err != nil {
 		return fmt.Errorf("读取 OCI Layout Root Index 失败: %w", err)

@@ -1,11 +1,11 @@
 package cmd
 
 import (
+	"Imt/pkg/config"
+	"Imt/pkg/harbor"
+	"Imt/pkg/registry"
 	"context"
 	"fmt"
-	"ikl/pkg/config"
-	"ikl/pkg/harbor"
-	"ikl/pkg/registry"
 	"strings"
 	"sync"
 
@@ -20,7 +20,7 @@ var migrateCmd = &cobra.Command{
 	Use:     "migrate",
 	Short:   "根据配置文件批量迁移镜像",
 	Long:    `读取 YAML 配置文件，将镜像从源仓库复制到目标仓库。会自动识别 Manifest List 从而支持多架构迁移。`,
-	Example: `  ikl migrate --config config.yaml --proxy http://127.0.0.1:7890`,
+	Example: `  Imt migrate --config config.yaml --proxy http://127.0.0.1:7890`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if configPath == "" {
 			handleError(fmt.Errorf("请提供配置文件路径"))

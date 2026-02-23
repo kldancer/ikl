@@ -1,17 +1,16 @@
 package cmd
 
 import (
+	"Imt/pkg/config"
+	"Imt/pkg/harbor"
+	"Imt/pkg/registry"
 	"context"
 	"fmt"
-	"ikl/pkg/config"
-	"ikl/pkg/harbor"
-	"ikl/pkg/registry"
 	"os"
 	"strings"
 	"sync"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 )
@@ -24,7 +23,7 @@ var (
 var loadCmd = &cobra.Command{
 	Use:     "load",
 	Short:   "从离线 OCI Image Bundle 导入镜像到目标仓库",
-	Example: `  ikl load --input my-bundle.tar --config config.yaml`,
+	Example: `  Imt load --input my-bundle.tar --config config.yaml`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if loadConfigPath == "" {
 			handleError(fmt.Errorf("必须通过 --config 指定配置文件"))
@@ -42,7 +41,7 @@ var loadCmd = &cobra.Command{
 		handleError(err)
 
 		// 2. 解包
-		tmpDir, err := os.MkdirTemp("", "ikl-load-*")
+		tmpDir, err := os.MkdirTemp("", "Imt-load-*")
 		handleError(err)
 		defer os.RemoveAll(tmpDir)
 
@@ -51,8 +50,7 @@ var loadCmd = &cobra.Command{
 		handleError(err)
 
 		// 3. 读取 OCI Layout
-		lp := layout.Path(tmpDir)
-		layoutImages, err := registry.GetLayoutImages(lp)
+		layoutImages, err := registry.GetLayoutImages(tmpDir)
 		handleError(err)
 
 		if len(layoutImages) == 0 {
@@ -146,7 +144,7 @@ var loadCmd = &cobra.Command{
 				}
 			}()
 
-			err = dstClient.LoadFromLayout(ctx, lp, lImg.Descriptor, targetRepo, targetTag, updates)
+			err = dstClient.LoadFromLayout(ctx, tmpDir, lImg.Descriptor, targetRepo, targetTag, updates)
 
 			func() {
 				defer func() {

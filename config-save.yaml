@@ -17,7 +17,6 @@ image_list: |
   nvcr.io/nvidia/k8s/dcgm-exporter:3.3.7-3.5.0-ubuntu22.04 #arch=amd64
   docker.io/busybox:latest #arch=amd64 
   docker.io/rancher/kubectl:v1.35.0 #arch=amd64
-  ghcr.io/prometheus-community/windows-exporter:v0.31.3 #arch=amd64
   quay.io/prometheus/alertmanager:v0.31.0 #arch=amd64
   docker.io/grafana/grafana:12.3.2 #arch=amd64
   docker.io/bats/bats:1.13.0 #arch=amd64
