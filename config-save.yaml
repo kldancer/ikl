@@ -1,18 +1,37 @@
 image_list: |
-  registry.aliyuncs.com/google_containers/kube-apiserver:v1.34.4
-  registry.aliyuncs.com/google_containers/kube-controller-manager:v1.34.4
-  registry.aliyuncs.com/google_containers/kube-scheduler:v1.34.4
-  registry.aliyuncs.com/google_containers/kube-proxy:v1.34.4
-  registry.aliyuncs.com/google_containers/coredns:v1.12.1
-  registry.aliyuncs.com/google_containers/pause:3.10.1
-  registry.aliyuncs.com/google_containers/etcd:3.6.5-0
-  docker.io/kubeovn/kube-ovn:v1.15.2
-  docker.io/kubeovn/vpc-nat-gateway:v1.15.2
-  ghcr.io/k8snetworkplumbingwg/multus-cni:snapshot-thick
-  registry.cn-hangzhou.aliyuncs.com/google_containers/kube-scheduler:v1.35.0
-  docker.io/projecthami/hami:v2.7.1
-  docker.io/jettech/kube-webhook-certgen:v1.5.2
-  docker.io/liangjw/kube-webhook-certgen:v1.1.1
-  docker.io/projecthami/hami-webui-fe-oss:v1.0.5
-  docker.io/projecthami/hami-webui-be-oss:v1.0.5
-  nvcr.io/nvidia/k8s/dcgm-exporter:3.3.7-3.5.0-ubuntu22.04
+  registry.aliyuncs.com/google_containers/kube-apiserver:v1.34.4 #arch=amd64
+  registry.aliyuncs.com/google_containers/kube-controller-manager:v1.34.4 #arch=amd64
+  registry.aliyuncs.com/google_containers/kube-scheduler:v1.34.4 #arch=amd64
+  registry.aliyuncs.com/google_containers/kube-proxy:v1.34.4 #arch=amd64
+  registry.aliyuncs.com/google_containers/coredns:v1.12.1 #arch=amd64
+  registry.aliyuncs.com/google_containers/pause:3.10.1 #arch=amd64
+  registry.aliyuncs.com/google_containers/etcd:3.6.5-0 #arch=amd64
+  docker.io/kubeovn/kube-ovn:v1.15.2 #arch=amd64
+  docker.io/kubeovn/vpc-nat-gateway:v1.15.2 #arch=amd64
+  ghcr.io/k8snetworkplumbingwg/multus-cni:snapshot-thick #arch=amd64
+  docker.io/projecthami/hami:v2.7.1 #arch=amd64
+  docker.io/jettech/kube-webhook-certgen:v1.5.2 #arch=amd64
+  docker.io/liangjw/kube-webhook-certgen:v1.1.1 #arch=amd64
+  docker.io/projecthami/hami-webui-fe-oss:v1.0.5 #arch=amd64
+  docker.io/projecthami/hami-webui-be-oss:v1.0.5 #arch=amd64
+  nvcr.io/nvidia/k8s/dcgm-exporter:3.3.7-3.5.0-ubuntu22.04 #arch=amd64
+  docker.io/busybox:latest #arch=amd64 
+  docker.io/rancher/kubectl:v1.35.0 #arch=amd64
+  ghcr.io/prometheus-community/windows-exporter:v0.31.3 #arch=amd64
+  quay.io/prometheus/alertmanager:v0.31.0 #arch=amd64
+  docker.io/grafana/grafana:12.3.2 #arch=amd64
+  docker.io/bats/bats:1.13.0 #arch=amd64
+  docker.io/curlimages/curl:8.18.0 #arch=amd64
+  docker.io/library/busybox:1.37.0 #arch=amd64
+  docker.io/grafana/grafana-image-renderer:latest #arch=amd64
+  quay.io/kiwigrid/k8s-sidecar:2.5.0 #arch=amd64
+  registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.18.0 #arch=amd64
+  quay.io/brancz/kube-rbac-proxy:v0.20.2 #arch=amd64
+  quay.io/prometheus/node-exporter:v1.10.2 #arch=amd64
+  quay.io/brancz/kube-rbac-proxy:v0.20.2 #arch=amd64
+  quay.io/prometheus-operator/admission-webhook:v0.88.1 #arch=amd64
+  ghcr.io/jkroepke/kube-webhook-certgen:1.7.4 #arch=amd64
+  quay.io/prometheus-operator/prometheus-operator:v0.88.1 #arch=amd64
+  quay.io/prometheus-operator/prometheus-config-reloader:v0.88.1 #arch=amd64
+  quay.io/thanos/thanos:v0.40.1 #arch=amd64
+  quay.io/prometheus/prometheus:v3.9.1 #arch=amd64
